@@ -1,0 +1,22 @@
+plugins {
+	id 'org.springframework.boot'
+	id 'org.springframework.experimental.aot'
+	id 'application'
+	id 'org.graalvm.buildtools.native'
+}
+
+dependencies {
+	//
+	api project(':core')
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+}
+
+application {
+	mainClassName = 'com.example.multimodules.MultiModulesApplication'
+}
+
+bootBuildImage {
+	// TODO Bring back "paketobuildpacks/builder:tiny" before 0.10.0 release
+	builder = 'dmikusa/graalvm-tiny'
+	environment = ['BP_NATIVE_IMAGE': 'true']
+}

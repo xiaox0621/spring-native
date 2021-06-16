@@ -1,0 +1,17 @@
+== Concourse pipeline
+
+Ensure that you've setup the spring-native target and can login
+
+[source]
+----
+$ fly -t spring-native login -n spring-native -c https://ci.spring.io
+----
+
+The pipeline can be deployed using the following command:
+
+[source]
+----
+$ fly -t spring-native set-pipeline -p spring-native -c ci/pipeline.yml -l ci/parameters.yml
+----
+
+NOTE: This assumes that you have configured the appropriate secrets.

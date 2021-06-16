@@ -1,0 +1,368 @@
+[[getting-started-native-build-tools]]
+=== Getting started with Native Build Tools
+
+This section gives you a practical overview of building a Spring Boot native application using the {graalvm-native-buildtools}[GraalVM native build tools].
+This is a practical guide that uses the https://spring.io/guides/gs/rest-service/[RESTful Web Service getting started guide].
+
+[[getting-started-native-image-system-requirements]]
+==== System Requirements
+
+A number of {graalvm-native-docs}/#prerequisites[prerequisites] are required before installing the GraalVM `native-image` compiler.
+You then need a local installation of the native image compiler.
+
+To install the native image compiler on MacOS or Linux, we recommend using https://sdkman.io/[SDKMAN]:
+
+* https://sdkman.io/install[Install SDKMAN].
+* Install GraalVM with `sdk install java {graalvm-version}.r8-grl` for Java 8 or `sdk install java {graalvm-version}.r11-grl` for Java 11.
+* Make sure to use the newly installed JDK with `sdk use java {graalvm-version}.r8-grl` or `sdk use java {graalvm-version}.r11-grl`.
+* Run `gu install native-image` to bring in the native-image extensions to the JDK.
+
+Alternatively or if you are on Microsoft Windows, you can manually install GraalVM builds as follows:
+
+* Download https://www.graalvm.org/downloads/[GraalVM {graalvm-version}].
+* Set `JAVA_HOME` and `PATH` appropriately.
+* Run `gu install native-image` to bring in the native-image extensions to the JDK.
+
+==== Sample Project Setup
+
+The completed "RESTful Web Service" guide can be retrieved using the following commands:
+
+
+[source,bash]
+----
+git clone https://github.com/spring-guides/gs-rest-service
+cd gs-rest-service/complete
+----
+
+
+===== Validate Spring Boot version
+
+IMPORTANT: Spring Native {version} only supports Spring Boot {spring-boot-version}, so change the version if necessary.
+
+[source,xml,subs="attributes,verbatim",role="primary"]
+.Maven
+----
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>{spring-boot-version}</version>
+    <relativePath/>
+</parent>
+----
+[source,groovy,subs="attributes,verbatim",role="secondary"]
+.Gradle Groovy
+----
+plugins {
+    id 'org.springframework.boot' version '{spring-boot-version}'
+    // ...
+}
+----
+[source,Kotlin,subs="attributes,verbatim",role="secondary"]
+.Gradle Kotlin
+----
+plugins {
+    id("org.springframework.boot") version "{spring-boot-version}"
+    // ...
+}
+----
+
+
+===== Add the Spring Native dependency
+
+`org.springframework.experimental:spring-native` provides native configuration APIs like `@NativeHint` as well as other mandatory classes required to run a Spring application as a native image.
+
+
+[source,xml,subs="attributes,verbatim",role="primary"]
+.Maven
+----
+<dependencies>
+    <!-- ... -->
+    <dependency>
+        <groupId>org.springframework.experimental</groupId>
+        <artifactId>spring-native</artifactId>
+        <version>{version}</version>
+    </dependency>
+</dependencies>
+----
+[source,groovy,subs="attributes,verbatim",role="secondary"]
+.Gradle Groovy
+----
+// No need to add the spring-native dependency explicitly with Gradle, the Spring AOT plugin will add it automatically.
+----
+[source,Kotlin,subs="attributes,verbatim",role="secondary"]
+.Gradle Kotlin
+----
+// No need to add the spring-native dependency explicitly with Gradle, the Spring AOT plugin will add it automatically.
+----
+
+
+===== Add the Spring AOT plugin
+
+The Spring AOT plugin performs ahead-of-time transformations required to improve native image compatibility and footprint.
+
+
+[source,xml,subs="attributes,verbatim",role="primary"]
+.Maven
+----
+<build>
+    <plugins>
+        <!-- ... -->
+        <plugin>
+            <groupId>org.springframework.experimental</groupId>
+            <artifactId>spring-aot-maven-plugin</artifactId>
+            <version>{version}</version>
+            <executions>
+                <execution>
+                    <id>test-generate</id>
+                    <goals>
+                        <goal>test-generate</goal>
+                    </goals>
+                </execution>
+                <execution>
+                    <id>generate</id>
+                    <goals>
+                        <goal>generate</goal>
+                    </goals>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
+----
+[source,subs="attributes,verbatim",role="secondary"]
+.Gradle Groovy
+----
+plugins {
+    // ...
+    id 'org.springframework.experimental.aot' version '{version}'
+}
+----
+[source,Kotlin,subs="attributes,verbatim",role="secondary"]
+.Gradle Kotlin
+----
+plugins {
+    // ...
+    id("org.springframework.experimental.aot") version "{version}"
+}
+----
+
+
+The plugin provides a number of options to customize the transformations, see <<spring-aot-configuration>> for more details.
+
+===== Add the native build tools plugin
+
+GraalVM provides {graalvm-native-buildtools}[Gradle and Maven plugins] to invoke the native image compiler from your build.
+The following example adds a `native` profile that triggers the plugin during the `package` phase:
+
+
+[source,xml,subs="attributes,verbatim",role="primary"]
+.Maven
+----
+<profiles>
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <version>{graalvm-native-buildtools-version}</version>
+                        <executions>
+                            <execution>
+                                <id>test-native</id>
+                                <goals>
+                                    <goal>test</goal>
+                                </goals>
+                                <phase>test</phase>
+                            </execution>
+                            <execution>
+                                <id>build-native</id>
+                                <goals>
+                                    <goal>build</goal>
+                                </goals>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <!-- ... -->
+                        </configuration>
+                    </plugin>
+                    <!-- Avoid a clash between Spring Boot repackaging and native-maven-plugin -->
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <configuration>
+                            <classifier>exec</classifier>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+----
+[source,subs="attributes,verbatim",role="secondary"]
+.Gradle Groovy
+----
+plugins {
+    // ...
+    id 'org.graalvm.buildtools.native' version '{graalvm-native-buildtools-version}'
+}
+----
+[source,Kotlin,subs="attributes,verbatim",role="secondary"]
+.Gradle Kotlin
+----
+plugins {
+    // ...
+    id("org.graalvm.buildtools.native") version "{graalvm-native-buildtools-version}"
+}
+----
+
+
+===== Maven Repository
+
+Configure your build to include the {spring-native-repo} repository for the `spring-native` dependency, and the Maven Central one with Gradle for the native build tools one as follows:
+
+
+[source,xml,subs="attributes,verbatim",role="primary"]
+.Maven
+----
+<repositories>
+    <!-- ... -->
+    <repository>
+        <id>spring-{spring-native-repo}</id>
+        <name>Spring {spring-native-repo}</name>
+        <url>https://repo.spring.io/{spring-native-repo}</url>
+    </repository>
+</repositories>
+----
+[source,subs="attributes,verbatim",role="secondary"]
+.Gradle Groovy
+----
+repositories {
+    // ...
+    mavenCentral()
+    maven { url 'https://repo.spring.io/{spring-native-repo}' }
+}
+----
+[source,Kotlin,subs="attributes,verbatim",role="secondary"]
+.Gradle Kotlin
+----
+repositories {
+    // ...
+    mavenCentral()
+    maven { url = uri("https://repo.spring.io/{spring-native-repo}") }
+}
+----
+
+
+Same thing for the plugins:
+
+
+[source,xml,subs="attributes,verbatim",role="primary"]
+.Maven
+----
+<pluginRepositories>
+    <!-- ... -->
+    <pluginRepository>
+        <id>spring-{spring-native-repo}</id>
+        <name>Spring {spring-native-repo}</name>
+        <url>https://repo.spring.io/{spring-native-repo}</url>
+    </pluginRepository>
+</pluginRepositories>
+----
+[source,subs="attributes,verbatim",role="secondary"]
+.Gradle Groovy
+----
+pluginManagement {
+    repositories {
+        // ...
+        mavenCentral()
+        maven { url 'https://repo.spring.io/{spring-native-repo}' }
+    }
+}
+----
+[source,Kotlin,subs="attributes,verbatim",role="secondary"]
+.Gradle Kotlin
+----
+pluginManagement {
+    repositories {
+        // ...
+        mavenCentral()
+        maven { url = uri("https://repo.spring.io/{spring-native-repo}") }
+    }
+}
+----
+
+
+==== Build the native application
+
+The native application can be built as follows:
+
+[source,bash,role="primary"]
+.Maven
+----
+$ mvn -Pnative -DskipTests package
+----
+[source,bash,role="secondary"]
+.Gradle Groovy
+----
+$ gradle nativeBuild
+----
+[source,bash,role="secondary"]
+.Gradle Kotlin
+----
+$ gradle nativeBuild
+----
+
+NOTE: During the native compilation, you will see a lot of `WARNING: Could not register reflection metadata` messages. They are expected and will be removed in a future version, see https://github.com/spring-projects-experimental/spring-native/issues/502#issuecomment-786933142[#502] for more details.
+
+IMPORTANT: On Windows make sure to use x64 Native Tools Command Prompt as recommended in the {graalvm-native-docs}/#prerequisites[GraalVM native-image prerequisites].
+
+This command creates a native executable containing your Spring Boot application in the `target` directory.
+
+==== Run the native application
+
+To run your application, invoke the following:
+
+
+[source,bash]
+----
+$ target/gs-rest-service
+----
+
+
+The startup time should be less than `100ms`, compared to the roughly `1500ms` when starting the application on the JVM.
+
+Now that the service is up, visit `http://localhost:8080/greeting`, where you should see:
+
+
+[source,json]
+----
+{"id":1,"content":"Hello, World!"}
+----
+
+==== Test the native application
+
+The native application can be tested as follows:
+
+[source,bash,role="primary"]
+.Maven
+----
+$ mvn -Pnative test
+----
+[source,bash,role="secondary"]
+.Gradle Groovy
+----
+$ gradle nativeTest
+----
+[source,bash,role="secondary"]
+.Gradle Kotlin
+----
+$ gradle nativeTest
+----
+
+You can find more details about the native build tools https://github.com/graalvm/native-build-tools[here].
+
+
+
+
